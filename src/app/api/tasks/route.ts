@@ -1,220 +1,246 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { extractToken, validateSession, logActivity, jsonResponse, errorResponse } from "@/lib/auth";
 
-// GET /api/tasks - List all tasks with filters
-export async function GET(request: NextRequest) {
+// ═══════════════════════════════════════════════════════
+// GET /api/tasks — List tasks with filters
+// ═══════════════════════════════════════════════════════
+export async function GET(request: Request) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const priority = searchParams.get("priority");
-    const assignedTo = searchParams.get("assignedTo");
     const type = searchParams.get("type");
+    const assignedTo = searchParams.get("assignedTo");
+    const overdue = searchParams.get("overdue");
     const leadId = searchParams.get("leadId");
-    const overdue = searchParams.get("overdue") === "true";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const page = parseInt(searchParams.get("page") ?? "1");
+    const limit = parseInt(searchParams.get("limit") ?? "50");
 
     const where: Record<string, unknown> = {};
 
+    // Non-admin users only see their assigned tasks
+    if (user.role === "client" || user.role === "contractor") {
+      where.assignedTo = user.id;
+    }
+
     if (status) where.status = status;
     if (priority) where.priority = priority;
-    if (assignedTo) where.assignedTo = assignedTo;
     if (type) where.type = type;
+    if (assignedTo) where.assignedTo = assignedTo;
     if (leadId) where.leadId = leadId;
 
-    if (overdue) {
+    // Overdue filter: tasks that are past due and not completed
+    if (overdue === "true") {
       where.status = { not: "completed" };
-      where.dueDate = { lt: new Date() };
+      where.dueDate = { lte: new Date() };
     }
 
     const [tasks, total] = await Promise.all([
       db.task.findMany({
         where,
+        include: {
+          assignee: { select: { id: true, name: true, avatar: true } },
+          lead: { select: { id: true, name: true, businessName: true, pipelineStage: true } },
+        },
         orderBy: [
           { priority: "desc" },
+          { dueDate: "asc" },
           { createdAt: "desc" },
         ],
         skip: (page - 1) * limit,
         take: limit,
-        include: {
-          lead: {
-            select: {
-              id: true,
-              name: true,
-              businessName: true,
-              pipelineStage: true,
-            },
-          },
-        },
       }),
       db.task.count({ where }),
     ]);
 
-    return NextResponse.json({
+    // Status counts for task board
+    const statusCounts = await db.task.groupBy({
+      by: ["status"],
+      _count: { id: true },
+    });
+
+    const taskCounts = Object.fromEntries(
+      statusCounts.map((s) => [s.status, s._count.id])
+    );
+
+    return jsonResponse({
       tasks,
+      taskCounts,
       pagination: {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
-    console.error("Tasks GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("List tasks error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }
 
-// POST /api/tasks - Create new task
-export async function POST(request: NextRequest) {
+// ═══════════════════════════════════════════════════════
+// POST /api/tasks — Create task
+// ═══════════════════════════════════════════════════════
+export async function POST(request: Request) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const body = await request.json();
     const {
       title,
       description,
       type,
       priority,
+      status,
       assignedTo,
       leadId,
       dueDate,
     } = body;
 
     if (!title) {
-      return NextResponse.json(
-        { error: "Task title is required" },
-        { status: 400 }
-      );
+      return errorResponse("Title is required");
     }
 
     const task = await db.task.create({
       data: {
-        title,
-        description: description || null,
-        type: type || "general",
-        priority: priority || "medium",
-        assignedTo: assignedTo || null,
-        leadId: leadId || null,
+        title: title.trim(),
+        description: description ?? null,
+        type: type ?? "general",
+        priority: priority ?? "medium",
+        status: status ?? "pending",
+        assignedTo: assignedTo ?? null,
+        leadId: leadId ?? null,
         dueDate: dueDate ? new Date(dueDate) : null,
       },
-      include: {
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            businessName: true,
-          },
-        },
-      },
     });
 
-    // Log activity
-    await db.activity.create({
-      data: {
-        type: "task_created",
-        message: `Task "${task.title}" created${task.leadId ? ` for ${task.lead?.name || "lead"}` : ""}`,
-        leadId: leadId || null,
+    await logActivity(
+      "task_created",
+      `${user.name} created task: ${task.title}`,
+      {
         taskId: task.id,
-        userId: assignedTo || null,
+        priority: task.priority,
+        type: task.type,
+        leadId: task.leadId,
       },
-    });
-
-    // Update lead's lastActivityAt if task is linked to a lead
-    if (leadId) {
-      await db.lead.update({
-        where: { id: leadId },
-        data: { lastActivityAt: new Date() },
-      });
-    }
-
-    return NextResponse.json({ task }, { status: 201 });
-  } catch (error) {
-    console.error("Tasks POST error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      user.id,
+      task.leadId ?? undefined,
+      user.portal
     );
+
+    return jsonResponse({ task }, 201);
+  } catch (error) {
+    console.error("Create task error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }
 
-// PATCH /api/tasks - Update task (mark complete, change priority, etc.)
-export async function PATCH(request: NextRequest) {
+// ═══════════════════════════════════════════════════════
+// PATCH /api/tasks — Update task
+// ═══════════════════════════════════════════════════════
+export async function PATCH(request: Request) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id, title, description, type, priority, status, assignedTo, dueDate } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: "Task ID is required" },
-        { status: 400 }
-      );
+      return errorResponse("Task ID is required");
     }
 
-    const existing = await db.task.findUnique({
-      where: { id },
-      include: {
-        lead: { select: { id: true, name: true } },
-      },
-    });
+    const existing = await db.task.findUnique({ where: { id } });
+    if (!existing) return errorResponse("Task not found", 404);
 
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
-    }
+    const data: Record<string, unknown> = {};
+    const changes: Record<string, unknown> = {};
 
-    // Handle task completion
-    if (updateData.status === "completed" && existing.status !== "completed") {
-      updateData.completedAt = new Date();
-    } else if (updateData.status && updateData.status !== "completed") {
-      updateData.completedAt = null;
+    if (title !== undefined) { data.title = title.trim(); changes.title = title; }
+    if (description !== undefined) { data.description = description; changes.description = true; }
+    if (type !== undefined) { data.type = type; changes.type = type; }
+    if (priority !== undefined) { data.priority = priority; changes.priority = priority; }
+    if (assignedTo !== undefined) { data.assignedTo = assignedTo; changes.assignedTo = assignedTo; }
+    if (dueDate !== undefined) { data.dueDate = dueDate ? new Date(dueDate) : null; changes.dueDate = dueDate; }
+
+    if (status !== undefined) {
+      data.status = status;
+      changes.statusChanged = { from: existing.status, to: status };
+      if (status === "completed") {
+        data.completedAt = new Date();
+      } else {
+        data.completedAt = null;
+      }
     }
 
     const task = await db.task.update({
       where: { id },
-      data: updateData,
+      data,
       include: {
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            businessName: true,
-          },
-        },
+        assignee: { select: { id: true, name: true, avatar: true } },
+        lead: { select: { id: true, name: true } },
       },
     });
 
-    // Log activity for status changes
-    if (updateData.status && updateData.status !== existing.status) {
-      if (updateData.status === "completed") {
-        await db.activity.create({
-          data: {
-            type: "task_completed",
-            message: `Task "${task.title}" completed${existing.lead ? ` for ${existing.lead.name}` : ""}`,
-            leadId: existing.leadId,
-            taskId: task.id,
-          },
-        });
-      }
-    }
+    const activityType = changes.statusChanged && changes.statusChanged.to === "completed"
+      ? "task_completed"
+      : "system";
 
-    // Update lead's lastActivityAt
-    if (existing.leadId) {
-      await db.lead.update({
-        where: { id: existing.leadId },
-        data: { lastActivityAt: new Date() },
-      });
-    }
-
-    return NextResponse.json({ task });
-  } catch (error) {
-    console.error("Tasks PATCH error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    await logActivity(
+      activityType,
+      `${user.name} updated task: ${task.title}`,
+      { ...changes, taskId: task.id },
+      user.id,
+      task.leadId ?? undefined,
+      user.portal
     );
+
+    return jsonResponse({ task });
+  } catch (error) {
+    console.error("Update task error:", error);
+    return errorResponse("Internal server error", 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// DELETE /api/tasks — Delete task (by query param)
+// ═══════════════════════════════════════════════════════
+export async function DELETE(request: Request) {
+  try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) return errorResponse("Task ID is required");
+
+    const task = await db.task.findUnique({ where: { id } });
+    if (!task) return errorResponse("Task not found", 404);
+
+    await db.task.delete({ where: { id } });
+
+    await logActivity(
+      "system",
+      `${user.name} deleted task: ${task.title}`,
+      { taskId: task.id, leadId: task.leadId },
+      user.id,
+      task.leadId ?? undefined,
+      user.portal
+    );
+
+    return jsonResponse({ message: "Task deleted successfully" });
+  } catch (error) {
+    console.error("Delete task error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }

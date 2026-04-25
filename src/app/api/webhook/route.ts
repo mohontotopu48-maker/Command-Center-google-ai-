@@ -1,195 +1,253 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logActivity, jsonResponse, errorResponse } from "@/lib/auth";
 
-// POST /api/webhook - GHL webhook endpoint
-export async function POST(request: NextRequest) {
+// ═══════════════════════════════════════════════════════
+// POST /api/webhook — GHL webhook receiver
+// ═══════════════════════════════════════════════════════
+export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // GHL webhook payloads vary, but commonly include:
-    // contact fields: first_name, last_name, email, phone, etc.
-    // We normalize these to our Lead model
+    // GHL webhook payload structure
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      business_name,
+      source,
+      tags,
+      // Allow raw data passthrough
+      ...rawData
+    } = body;
 
-    const firstName = body.first_name || body.firstName || body.name || "";
-    const lastName = body.last_name || body.lastName || "";
-    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
-
-    const emailRaw =
-      body.email ||
-      body.contact?.email ||
-      body.primary_email ||
-      "";
-    const email = String(emailRaw);
-    const phoneRaw =
-      body.phone ||
-      body.contact?.phone ||
-      body.primary_phone ||
-      body.mobile_phone ||
-      "";
-    const phone = String(phoneRaw);
-    const businessNameRaw =
-      body.company_name ||
-      body.business_name ||
-      body.companyName ||
-      body.company ||
-      "";
-    const businessName = String(businessNameRaw);
-    const source = body.source || "ghl_webhook";
-    const tags = body.tags
-      ? Array.isArray(body.tags)
-        ? body.tags.join(",")
-        : String(body.tags)
-      : "";
-
-    // Extract service type from notes or custom fields
-    const serviceTypeRaw =
-      body.service_type ||
-      body.serviceType ||
-      body.services_needed ||
-      "";
-    const serviceType = String(serviceTypeRaw);
-
-    // Validate required fields
-    if (!fullName || !email) {
-      return NextResponse.json(
-        { error: "Name and email are required from webhook payload" },
-        { status: 400 }
-      );
+    if (!email) {
+      return errorResponse("Email is required from webhook payload");
     }
 
     // Check if lead already exists by email
-    const normalizedEmail = email.toLowerCase().trim();
-    const existing = await db.lead.findFirst({
-      where: { email: normalizedEmail },
+    const existingLead = await db.lead.findUnique({
+      where: { email: email.toLowerCase().trim() },
     });
 
-    if (existing) {
-      // Update existing lead with new webhook data
+    if (existingLead) {
+      // Update existing lead with new data from webhook
       const updateData: Record<string, unknown> = {
         lastActivityAt: new Date(),
-        source: "ghl_webhook",
       };
 
-      if (businessName && !existing.businessName) {
-        updateData.businessName = businessName;
+      if (first_name || last_name) {
+        updateData.name = [first_name, last_name].filter(Boolean).join(" ").trim() || existingLead.name;
       }
-      if (phone && !existing.phone) {
-        updateData.phone = phone;
-      }
-      if (tags) {
-        const existingTags = existing.tags
-          ? existing.tags.split(",").map((t: string) => t.trim())
-          : [];
-        const newTags = tags.split(",").map((t: string) => t.trim());
-        updateData.tags = [...new Set([...existingTags, ...newTags])].join(",");
-      }
+      if (business_name) updateData.businessName = business_name;
+      if (phone) updateData.phone = phone;
+      if (tags) updateData.tags = Array.isArray(tags) ? tags.join(",") : tags;
+      if (source) updateData.source = source;
 
-      const lead = await db.lead.update({
-        where: { id: existing.id },
+      const updatedLead = await db.lead.update({
+        where: { id: existingLead.id },
         data: updateData,
       });
 
-      // Log automation
-      await db.automationLog.create({
-        data: {
-          trigger: "lead_created",
-          action: "webhook_lead_updated",
-          leadId: lead.id,
-          status: "success",
-          message: `Existing lead "${lead.name}" updated via GHL webhook`,
+      await logActivity(
+        "lead_created",
+        `GHL webhook updated lead: ${updatedLead.name}`,
+        {
+          source: "ghl_webhook",
+          leadId: updatedLead.id,
+          changes: updateData,
+          rawEvent: rawData,
         },
-      });
+        undefined,
+        updatedLead.id,
+        updatedLead.portal
+      );
 
-      return NextResponse.json({
-        message: "Existing lead updated",
-        lead,
-        isNew: false,
+      // Trigger automations for updated lead
+      await triggerAutomations("stage_changed", updatedLead);
+
+      return jsonResponse({
+        lead: updatedLead,
+        message: "Existing lead updated from webhook",
       });
     }
 
-    // Create new lead
+    // Create new lead from webhook data
+    const fullName = [first_name, last_name].filter(Boolean).join(" ").trim() || "Unknown Lead";
+
+    // Determine pipeline stage
+    const initialStage = "New Lead";
+    const leadSource = source ?? "ghl_webhook";
+    const leadTags = tags ? (Array.isArray(tags) ? tags.join(",") : tags) : "webhook,ghl";
+
+    // Try to find an admin to assign as creator
+    const admin = await db.user.findFirst({
+      where: { role: "super_admin", isActive: true },
+    });
+
     const lead = await db.lead.create({
       data: {
         name: fullName,
+        businessName: business_name ?? null,
+        phone: phone ?? "",
         email: email.toLowerCase().trim(),
-        phone: phone || "000-000-0000",
-        businessName: businessName || null,
-        serviceType: serviceType || null,
-        tags: tags || "",
-        source: source,
-        pipelineStage: "New Lead",
-        status: "active",
+        pipelineStage: initialStage,
+        tags: leadTags,
+        source: leadSource,
+        portal: "nxl",
+        creatorId: admin?.id ?? null,
       },
     });
 
-    // Log activity
-    await db.activity.create({
-      data: {
-        type: "lead_created",
-        message: `New lead from GHL webhook: ${lead.name}${lead.businessName ? ` (${lead.businessName})` : ""}`,
-        leadId: lead.id,
-        metadata: JSON.stringify({ source: "ghl_webhook", rawSource: source }),
-      },
-    });
-
-    // Log automation
-    await db.automationLog.create({
-      data: {
-        trigger: "lead_created",
-        action: "webhook_lead_created",
-        leadId: lead.id,
-        status: "success",
-        message: `Lead "${lead.name}" created from GHL webhook`,
-      },
-    });
-
-    // Auto-tag based on business name presence
-    if (businessName) {
-      const updatedTags = lead.tags
-        ? `${lead.tags},has_business`
-        : "has_business";
-      await db.lead.update({
-        where: { id: lead.id },
-        data: { tags: updatedTags },
-      });
-    }
-
-    return NextResponse.json(
+    await logActivity(
+      "lead_created",
+      `GHL webhook created new lead: ${lead.name}`,
       {
-        message: "Lead created from webhook",
-        lead,
-        isNew: true,
+        source: "ghl_webhook",
+        leadId: lead.id,
+        email: lead.email,
+        rawEvent: rawData,
       },
-      { status: 201 }
+      admin?.id,
+      lead.id,
+      "nxl"
     );
-  } catch (error) {
-    console.error("Webhook POST error:", error);
 
-    // Log automation failure
-    try {
-      await db.automationLog.create({
+    // Trigger automations for new lead
+    await triggerAutomations("lead_created", lead);
+
+    // Create notification for super admins
+    if (admin) {
+      await db.notification.create({
         data: {
-          trigger: "lead_created",
-          action: "webhook_error",
-          status: "failed",
-          message: `Webhook processing failed: ${String(error)}`,
+          userId: admin.id,
+          title: "New Lead from GHL",
+          message: `${lead.name} (${lead.email}) was added via webhook`,
+          type: "info",
+          link: `/leads/${lead.id}`,
         },
       });
-    } catch {
-      // Ignore logging errors
     }
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    return jsonResponse(
+      {
+        lead,
+        message: "New lead created from webhook",
+      },
+      201
     );
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }
 
-// GET /api/webhook - Verify webhook endpoint
-export async function GET() {
-  return NextResponse.json({
-    message: "GHL Webhook endpoint is active",
-    status: "healthy",
-  });
+// ═══════════════════════════════════════════════════════
+// Automation trigger helper
+// ═══════════════════════════════════════════════════════
+async function triggerAutomations(
+  triggerType: string,
+  lead: { id: string; name: string; source: string; pipelineStage: string; tags: string; portal: string }
+) {
+  try {
+    const rules = await db.automationRule.findMany({
+      where: {
+        trigger: triggerType,
+        isActive: true,
+      },
+    });
+
+    for (const rule of rules) {
+      // Check conditions if any
+      if (rule.conditions) {
+        try {
+          const conditions = JSON.parse(rule.conditions);
+          if (conditions.source && conditions.source !== lead.source) continue;
+        } catch {
+          // Invalid JSON conditions, skip this rule
+          continue;
+        }
+      }
+
+      // Execute actions
+      const actions: { type: string; message?: string; title?: string; priority?: string; value?: string }[] =
+        typeof rule.actions === "string" ? JSON.parse(rule.actions) : [];
+
+      for (const action of actions) {
+        try {
+          if (action.type === "notify") {
+            // Find super admins to notify
+            const admins = await db.user.findMany({
+              where: { role: "super_admin", isActive: true },
+            });
+
+            for (const admin of admins) {
+              await db.notification.create({
+                data: {
+                  userId: admin.id,
+                  title: `Automation: ${rule.name}`,
+                  message: action.message ?? `Triggered for lead: ${lead.name}`,
+                  type: "info",
+                },
+              });
+            }
+          }
+
+          if (action.type === "tag" && action.value) {
+            const currentTags = lead.tags ? lead.tags.split(",").map((t) => t.trim()) : [];
+            if (!currentTags.includes(action.value)) {
+              await db.lead.update({
+                where: { id: lead.id },
+                data: { tags: [...currentTags, action.value].join(",") },
+              });
+            }
+          }
+
+          if (action.type === "create_task") {
+            const admins = await db.user.findMany({
+              where: { role: "super_admin", isActive: true },
+              take: 1,
+            });
+
+            await db.task.create({
+              data: {
+                title: action.title ?? `Auto: Follow up ${lead.name}`,
+                type: "follow_up",
+                priority: action.priority ?? "high",
+                status: "pending",
+                assignedTo: admins[0]?.id ?? null,
+                leadId: lead.id,
+                dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              },
+            });
+          }
+        } catch (actionError) {
+          console.error(`Action execution error (${action.type}):`, actionError);
+        }
+      }
+
+      // Update rule run stats
+      await db.automationRule.update({
+        where: { id: rule.id },
+        data: {
+          lastRunAt: new Date(),
+          runCount: { increment: 1 },
+        },
+      });
+
+      // Log the automation run
+      await db.automationLog.create({
+        data: {
+          ruleId: rule.id,
+          trigger: triggerType,
+          action: JSON.stringify(actions),
+          leadId: lead.id,
+          status: "success",
+          message: `Rule "${rule.name}" executed for lead ${lead.name}`,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Automation trigger error:", error);
+  }
 }

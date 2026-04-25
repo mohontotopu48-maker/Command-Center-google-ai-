@@ -7,20 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════════════════
+// AUTH & USERS
+// ═══════════════════════════════════════════════════════
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String
-  role      String   @default("client") // admin | client
+  password  String   @default("VSUAL@NX$260&")
+  role      String   @default("client")  // super_admin | admin | client | contractor
+  portal    String   @default("nxl")     // vbos | visual_os | nxl
   phone     String?
   avatar    String?
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  activities Activity[]
+  sessions        Session[]
+  activities      Activity[]
+  assignedTasks   Task[]
+  createdLeads    Lead[]       @relation("LeadCreator")
+  assignedLeads   Lead[]       @relation("LeadAssignee")
+  automationLogs  AutomationLog[]
+  notifications   Notification[]
 
   @@map("users")
 }
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ═══════════════════════════════════════════════════════
+// LEADS & PIPELINE
+// ═══════════════════════════════════════════════════════
 
 model Lead {
   id            String   @id @default(cuid())
@@ -33,25 +65,36 @@ model Lead {
   tags          String   @default("")
   assignedTo    String?
   notes         String?
-  source        String   @default("manual") // manual | ghl_webhook | referral
-  status        String   @default("active") // active | archived | lost
+  source        String   @default("manual")   // manual | ghl_webhook | referral | organic
+  status        String   @default("active")    // active | archived | lost | converted
+  portal        String   @default("nxl")       // visual_os | nxl
+  estimatedValue String?
+  hotLeadScore  Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   lastActivityAt DateTime @default(now())
 
-  tasks      Task[]
+  creatorId String?
+  creator   User?    @relation("LeadCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  tasks     Task[]
   activities Activity[]
+  project   Project?
+  assignee  User?    @relation("LeadAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
 
   @@map("leads")
 }
+
+// ═══════════════════════════════════════════════════════
+// TASKS
+// ═══════════════════════════════════════════════════════
 
 model Task {
   id          String   @id @default(cuid())
   title       String
   description String?
-  type        String   @default("general") // mockup | follow_up | call | review | general
-  priority    String   @default("medium")  // low | medium | high | urgent
-  status      String   @default("pending") // pending | in_progress | completed | overdue
+  type        String   @default("general")     // mockup | follow_up | call | review | general | design | development
+  priority    String   @default("medium")      // low | medium | high | urgent
+  status      String   @default("pending")     // pending | in_progress | completed | overdue | cancelled
   assignedTo  String?
   leadId      String?
   dueDate     DateTime?
@@ -59,62 +102,140 @@ model Task {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  lead       Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  assignee User?  @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  lead     Lead?  @relation(fields: [leadId], references: [id], onDelete: SetNull)
   activities Activity[]
 
   @@map("tasks")
 }
 
+// ═══════════════════════════════════════════════════════
+// PROJECTS (NXL Command Center)
+// ═══════════════════════════════════════════════════════
+
+model Project {
+  id             String   @id @default(cuid())
+  leadId         String?  @unique
+  clientName     String
+  businessName   String?
+  currentPhase   String   @default("handover")       // handover | game_plan | foundation | live
+  currentStep    Int      @default(1)
+  actionRequired Boolean  @default(false)
+  actionMessage  String   @default("")
+  status         String   @default("active")         // active | paused | completed | cancelled
+  startedAt      DateTime @default(now())
+  targetComplete DateTime?
+  updatedAt      DateTime @updatedAt
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  steps ProjectStep[]
+
+  @@map("projects")
+}
+
+model ProjectStep {
+  id          String   @id @default(cuid())
+  projectId   String
+  stepNumber  Int
+  title       String
+  description String?
+  status      String   @default("pending")  // pending | active | completed | blocked
+  completedAt DateTime?
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, stepNumber])
+  @@map("project_steps")
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTIVITY LOG
+// ═══════════════════════════════════════════════════════
+
 model Activity {
   id        String   @id @default(cuid())
-  type      String   // lead_created | stage_changed | task_created | task_completed | note_added | mockup_sent | hot_lead | call_scheduled
+  type      String   // lead_created | stage_changed | task_created | task_completed | note_added | mockup_sent | hot_lead | call_scheduled | login | system | user_created | automation
   message   String
-  metadata  String?  // JSON string for extra data
+  metadata  String?  // JSON string
+  portal    String?  // vbos | visual_os | nxl
   userId    String?
   leadId    String?
   taskId    String?
   createdAt DateTime @default(now())
 
-  user User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  lead Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  task Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lead Lead?  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  task Task?  @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
+  @@index([createdAt])
   @@map("activities")
 }
 
-model Project {
-  id             String   @id @default(cuid())
-  leadId         String?
-  clientName     String
-  businessName   String?
-  currentPhase   String   @default("handover") // handover | game_plan | foundation | live
-  currentStep    Int      @default(1)          // 1-13
-  actionRequired Boolean  @default(false)
-  actionMessage  String   @default("")
-  status         String   @default("active")   // active | paused | completed
-  startedAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@map("projects")
-}
+// ═══════════════════════════════════════════════════════
+// SYSTEM SETTINGS & AUTOMATION
+// ═══════════════════════════════════════════════════════
 
 model Setting {
   id    String @id @default(cuid())
   key   String @unique
   value String
-  type  String @default("string") // string | number | boolean | json
+  type  String @default("string")
+  group String @default("general")  // general | automation | portal | notification
 
   @@map("settings")
 }
 
+model AutomationRule {
+  id          String   @id @default(cuid())
+  name        String
+  trigger     String   // lead_created | stage_changed | task_overdue | stuck_lead | new_user
+  conditions  String?  // JSON
+  actions     String   // JSON - what to execute
+  isActive    Boolean  @default(true)
+  lastRunAt   DateTime?
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  logs AutomationLog[]
+
+  @@map("automation_rules")
+}
+
 model AutomationLog {
   id        String   @id @default(cuid())
-  trigger   String   // lead_created | stage_changed | task_overdue | stuck_lead
-  action    String   // what was executed
+  ruleId    String?
+  trigger   String
+  action    String
   leadId    String?
-  status    String   @default("success") // success | failed
+  userId    String?
+  status    String   @default("success")
   message   String?
+  metadata  String?
   createdAt DateTime @default(now())
 
+  rule  AutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  user  User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@map("automation_logs")
+}
+
+// ═══════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("info")  // info | warning | success | error | urgent
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }

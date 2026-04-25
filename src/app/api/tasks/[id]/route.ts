@@ -1,126 +1,104 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { extractToken, validateSession, logActivity, jsonResponse, errorResponse } from "@/lib/auth";
 
-// PATCH /api/tasks/[id] - Update specific task
+// ═══════════════════════════════════════════════════════
+// PATCH /api/tasks/[id] — Update specific task
+// ═══════════════════════════════════════════════════════
 export async function PATCH(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const { id } = await params;
     const body = await request.json();
 
-    const existing = await db.task.findUnique({
-      where: { id },
-      include: {
-        lead: { select: { id: true, name: true } },
-      },
-    });
+    const existing = await db.task.findUnique({ where: { id } });
+    if (!existing) return errorResponse("Task not found", 404);
 
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
-    }
+    const data: Record<string, unknown> = {};
+    const changes: Record<string, unknown> = {};
 
-    // Build update data
-    const updateData: Record<string, unknown> = {};
-    const allowedFields = [
-      "title",
-      "description",
-      "type",
-      "priority",
-      "status",
-      "assignedTo",
-      "leadId",
-      "dueDate",
-    ];
+    if (body.title !== undefined) { data.title = body.title.trim(); changes.title = body.title; }
+    if (body.description !== undefined) { data.description = body.description; }
+    if (body.type !== undefined) { data.type = body.type; changes.type = body.type; }
+    if (body.priority !== undefined) { data.priority = body.priority; changes.priority = body.priority; }
+    if (body.assignedTo !== undefined) { data.assignedTo = body.assignedTo; changes.assignedTo = body.assignedTo; }
+    if (body.dueDate !== undefined) { data.dueDate = body.dueDate ? new Date(body.dueDate) : null; }
 
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updateData[field] =
-          field === "dueDate" && body[field]
-            ? new Date(body[field] as string)
-            : body[field];
+    if (body.status !== undefined) {
+      data.status = body.status;
+      changes.statusChanged = { from: existing.status, to: body.status };
+      if (body.status === "completed") {
+        data.completedAt = new Date();
+      } else {
+        data.completedAt = null;
       }
-    }
-
-    // Handle completion
-    if (body.status === "completed" && existing.status !== "completed") {
-      updateData.completedAt = new Date();
-    } else if (body.status && body.status !== "completed") {
-      updateData.completedAt = null;
     }
 
     const task = await db.task.update({
       where: { id },
-      data: updateData,
+      data,
       include: {
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            businessName: true,
-          },
-        },
+        assignee: { select: { id: true, name: true, avatar: true } },
+        lead: { select: { id: true, name: true } },
       },
     });
 
-    // Log activity for completion
-    if (body.status === "completed" && existing.status !== "completed") {
-      await db.activity.create({
-        data: {
-          type: "task_completed",
-          message: `Task "${task.title}" completed${existing.lead ? ` for ${existing.lead.name}` : ""}`,
-          leadId: existing.leadId,
-          taskId: task.id,
-        },
-      });
-    }
+    const activityType = changes.statusChanged && changes.statusChanged.to === "completed"
+      ? "task_completed"
+      : "system";
 
-    // Update lead's lastActivityAt
-    if (existing.leadId) {
-      await db.lead.update({
-        where: { id: existing.leadId },
-        data: { lastActivityAt: new Date() },
-      });
-    }
-
-    return NextResponse.json({ task });
-  } catch (error) {
-    console.error("Task PATCH error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    await logActivity(
+      activityType,
+      `${user.name} updated task: ${task.title}`,
+      { ...changes, taskId: task.id },
+      user.id,
+      task.leadId ?? undefined,
+      user.portal
     );
+
+    return jsonResponse({ task });
+  } catch (error) {
+    console.error("Update task error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }
 
-// DELETE /api/tasks/[id] - Delete task
+// ═══════════════════════════════════════════════════════
+// DELETE /api/tasks/[id] — Delete task
+// ═══════════════════════════════════════════════════════
 export async function DELETE(
-  _request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const { id } = await params;
 
-    const existing = await db.task.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
-    }
+    const task = await db.task.findUnique({ where: { id } });
+    if (!task) return errorResponse("Task not found", 404);
 
     await db.task.delete({ where: { id } });
 
-    return NextResponse.json({ success: true, message: "Task deleted" });
-  } catch (error) {
-    console.error("Task DELETE error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    await logActivity(
+      "system",
+      `${user.name} deleted task: ${task.title}`,
+      { taskId: task.id, leadId: task.leadId },
+      user.id,
+      task.leadId ?? undefined,
+      user.portal
     );
+
+    return jsonResponse({ message: "Task deleted successfully" });
+  } catch (error) {
+    console.error("Delete task error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }

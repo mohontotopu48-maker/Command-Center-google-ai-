@@ -1,204 +1,199 @@
-import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { extractToken, validateSession, jsonResponse, errorResponse } from "@/lib/auth";
 
-// GET /api/dashboard - Returns aggregated stats
-export async function GET() {
+// ═══════════════════════════════════════════════════════
+// GET /api/dashboard — Dashboard stats
+// ═══════════════════════════════════════════════════════
+export async function GET(request: Request) {
   try {
+    const token = extractToken(request);
+    const user = await validateSession(token ?? "");
+    if (!user) return errorResponse("Unauthorized", 401);
+
+    const { searchParams } = new URL(request.url);
+    const portal = searchParams.get("portal");
+
+    const leadWhere: Record<string, unknown> = portal ? { portal } : {};
+
     // Run all queries in parallel for performance
     const [
       leadsByStage,
-      activeLeadsCount,
-      totalTasks,
+      leadsBySource,
+      leadsByStatus,
       tasksByStatus,
+      tasksByPriority,
       hotLeads,
       stuckOpportunities,
       recentActivities,
       projectsSummary,
-      tasksByPriority,
-      leadsBySource,
+      notificationsCount,
+      activeAutomations,
+      activeLeadsCount,
+      closedWonCount,
+      totalRevenue,
     ] = await Promise.all([
-      // Leads by stage
+      // Leads by pipeline stage
       db.lead.groupBy({
         by: ["pipelineStage"],
-        where: { status: "active" },
-        _count: { pipelineStage: true },
-      }),
-
-      // Active leads count (for quick reference)
-      db.lead.count({ where: { status: "active" } }),
-
-      // Total tasks
-      db.task.count(),
-
-      // Tasks by status
-      db.task.groupBy({
-        by: ["status"],
-        _count: { status: true },
-      }),
-
-      // Hot leads (leads in "Hot Lead" stage or tagged with "hot_lead")
-      db.lead.findMany({
-        where: {
-          status: "active",
-          OR: [
-            { pipelineStage: "Hot Lead" },
-            { tags: { contains: "hot_lead" } },
-          ],
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          name: true,
-          businessName: true,
-          email: true,
-          phone: true,
-          pipelineStage: true,
-          tags: true,
-          lastActivityAt: true,
-          createdAt: true,
-        },
-      }),
-
-      // Stuck opportunities (leads that haven't moved in 3+ days, not closed)
-      db.lead.findMany({
-        where: {
-          status: "active",
-          pipelineStage: {
-            notIn: ["Closed Won", "Closed Lost", "New Lead"],
-          },
-          lastActivityAt: {
-            lt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-          },
-        },
-        orderBy: { lastActivityAt: "asc" },
-        select: {
-          id: true,
-          name: true,
-          businessName: true,
-          email: true,
-          pipelineStage: true,
-          lastActivityAt: true,
-          createdAt: true,
-        },
-      }),
-
-      // Recent activities
-      db.activity.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 15,
-        include: {
-          user: { select: { id: true, name: true, avatar: true } },
-          lead: { select: { id: true, name: true, businessName: true } },
-          task: { select: { id: true, title: true } },
-        },
-      }),
-
-      // Projects summary
-      Promise.all([
-        db.project.count({ where: { status: "active" } }),
-        db.project.count({ where: { actionRequired: true } }),
-        db.project.groupBy({
-          by: ["currentPhase"],
-          _count: { currentPhase: true },
-        }),
-      ]),
-
-      // Tasks by priority
-      db.task.groupBy({
-        by: ["priority"],
-        _count: { priority: true },
+        where: { ...leadWhere, status: "active" },
+        _count: { id: true },
       }),
 
       // Leads by source
       db.lead.groupBy({
         by: ["source"],
-        _count: { source: true },
+        where: leadWhere,
+        _count: { id: true },
+      }),
+
+      // Leads by status
+      db.lead.groupBy({
+        by: ["status"],
+        where: leadWhere,
+        _count: { id: true },
+      }),
+
+      // Tasks by status
+      db.task.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+
+      // Tasks by priority
+      db.task.groupBy({
+        by: ["priority"],
+        where: { status: { not: "completed" } },
+        _count: { id: true },
+      }),
+
+      // Hot leads (score >= 80)
+      db.lead.findMany({
+        where: { ...leadWhere, hotLeadScore: { gte: 80 }, status: "active" },
+        select: { id: true, name: true, businessName: true, pipelineStage: true, hotLeadScore: true, email: true, phone: true },
+        orderBy: { hotLeadScore: "desc" },
+        take: 10,
+      }),
+
+      // Stuck opportunities (leads in "Engaged" or "Video Sent" for > 7 days)
+      db.lead.findMany({
+        where: {
+          ...leadWhere,
+          status: "active",
+          pipelineStage: { in: ["Engaged", "Video Sent", "Proof Stage"] },
+          lastActivityAt: { lte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+        select: { id: true, name: true, businessName: true, pipelineStage: true, lastActivityAt: true, email: true },
+        orderBy: { lastActivityAt: "asc" },
+        take: 10,
+      }),
+
+      // Recent activities
+      db.activity.findMany({
+        where: portal ? { portal } : undefined,
+        include: {
+          user: { select: { id: true, name: true, avatar: true } },
+          lead: { select: { id: true, name: true, businessName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 15,
+      }),
+
+      // Projects summary
+      db.project.findMany({
+        include: {
+          steps: { where: { status: "pending" } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+      }),
+
+      // Unread notifications count
+      db.notification.count({
+        where: { userId: user.id, isRead: false },
+      }),
+
+      // Active automations count
+      db.automationRule.count({
+        where: { isActive: true },
+      }),
+
+      // Total active leads
+      db.lead.count({
+        where: { ...leadWhere, status: "active" },
+      }),
+
+      // Closed won count (this month)
+      db.lead.count({
+        where: {
+          ...leadWhere,
+          status: "active",
+          pipelineStage: "Closed Won",
+        },
+      }),
+
+      // Total estimated revenue
+      db.lead.findMany({
+        where: { ...leadWhere, pipelineStage: "Closed Won", estimatedValue: { not: null } },
+        select: { estimatedValue: true },
       }),
     ]);
 
-    // Format leads by stage into a map
-    const stageMap: Record<string, number> = {};
-    const pipelineStages = [
-      "New Lead",
-      "Mockup Needed",
-      "Mockup Sent",
-      "Engaged",
-      "Video Sent",
-      "Proof Stage",
-      "Hot Lead",
-      "Call Scheduled",
-      "Closed Won",
-      "Closed Lost",
-      "Retention",
-    ];
-    for (const stage of pipelineStages) {
-      stageMap[stage] = 0;
-    }
-    for (const item of leadsByStage) {
-      stageMap[item.pipelineStage] = item._count.pipelineStage;
-    }
+    // Overdue tasks count
+    const overdueTasksCount = await db.task.count({
+      where: {
+        status: { not: "completed" },
+        dueDate: { lte: new Date() },
+      },
+    });
 
-    // Format tasks by status
-    const statusMap: Record<string, number> = {
-      pending: 0,
-      in_progress: 0,
-      completed: 0,
-      overdue: 0,
-    };
-    for (const item of tasksByStatus) {
-      statusMap[item.status] = item._count.status;
-    }
+    // Project phase distribution
+    const projectsByPhase = await db.project.groupBy({
+      by: ["currentPhase"],
+      where: { status: "active" },
+      _count: { id: true },
+    });
 
-    // Format tasks by priority
-    const priorityMap: Record<string, number> = {
-      low: 0,
-      medium: 0,
-      high: 0,
-      urgent: 0,
-    };
-    for (const item of tasksByPriority) {
-      priorityMap[item.priority] = item._count.priority;
-    }
-
-    // Format projects
-    const [activeProjects, actionRequiredProjects, projectsByPhase] = projectsSummary;
-    const phaseMap: Record<string, number> = {};
-    for (const item of projectsByPhase) {
-      phaseMap[item.currentPhase] = item._count.currentPhase;
-    }
-
-    // Format leads by source
-    const sourceMap: Record<string, number> = {};
-    for (const item of leadsBySource) {
-      sourceMap[item.source] = item._count.source;
-    }
-
-    return NextResponse.json({
+    return jsonResponse({
       leads: {
-        total: activeLeadsCount,
-        byStage: stageMap,
-        bySource: sourceMap,
+        byStage: Object.fromEntries(leadsByStage.map((l) => [l.pipelineStage, l._count.id])),
+        bySource: Object.fromEntries(leadsBySource.map((l) => [l.source, l._count.id])),
+        byStatus: Object.fromEntries(leadsByStatus.map((l) => [l.status, l._count.id])),
+        activeCount: activeLeadsCount,
+        closedWonCount,
+        totalRevenue: totalRevenue.reduce((sum, l) => sum + (parseFloat(l.estimatedValue || "0")), 0),
       },
       tasks: {
-        total: totalTasks,
-        byStatus: statusMap,
-        byPriority: priorityMap,
+        byStatus: Object.fromEntries(tasksByStatus.map((t) => [t.status, t._count.id])),
+        byPriority: Object.fromEntries(tasksByPriority.map((t) => [t.priority, t._count.id])),
+        overdueCount: overdueTasksCount,
       },
       hotLeads,
       stuckOpportunities,
       recentActivities,
       projects: {
-        active: activeProjects,
-        actionRequired: actionRequiredProjects,
-        byPhase: phaseMap,
+        summary: projectsSummary.map((p) => ({
+          id: p.id,
+          clientName: p.clientName,
+          businessName: p.businessName,
+          currentPhase: p.currentPhase,
+          currentStep: p.currentStep,
+          status: p.status,
+          actionRequired: p.actionRequired,
+          actionMessage: p.actionMessage,
+          pendingSteps: p.steps.length,
+          totalSteps: 13,
+        })),
+        byPhase: Object.fromEntries(projectsByPhase.map((p) => [p.currentPhase, p._count.id])),
+      },
+      notifications: {
+        unreadCount: notificationsCount,
+      },
+      automation: {
+        activeCount: activeAutomations,
       },
     });
   } catch (error) {
-    console.error("Dashboard GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Dashboard error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }

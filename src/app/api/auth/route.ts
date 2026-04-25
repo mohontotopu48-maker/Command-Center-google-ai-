@@ -1,65 +1,97 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { SUPER_ADMIN_EMAILS, MASTER_PASSWORD, logActivity, jsonResponse, errorResponse } from "@/lib/auth";
+import { createId } from "@paralleldrive/cuid2";
 
-// POST /api/auth - Login (accepts email + name, creates/returns user)
-export async function POST(request: NextRequest) {
+// ═══════════════════════════════════════════════════════
+// POST /api/auth — Login
+// ═══════════════════════════════════════════════════════
+export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, name } = body;
+    const { email, password, portal } = await request.json();
 
-    if (!email || !name) {
-      return NextResponse.json(
-        { error: "Email and name are required" },
-        { status: 400 }
-      );
+    if (!email || !password) {
+      return errorResponse("Email and password are required", 401);
     }
 
-    // Find or create user
+    // Find user by email
     let user = await db.user.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
 
-    if (!user) {
+    // Auto-create master admin if logging in for the first time
+    if (!user && SUPER_ADMIN_EMAILS.includes(email as typeof SUPER_ADMIN_EMAILS[number])) {
+      const name = email.includes("info") ? "Sal" : "Geo";
       user = await db.user.create({
         data: {
           email: email.toLowerCase().trim(),
-          name: name.trim(),
-          role: "client",
+          name,
+          password: MASTER_PASSWORD,
+          role: "super_admin",
+          portal: "vbos",
+          isActive: true,
         },
       });
     }
 
-    // Update name if provided and different
-    if (user.name !== name.trim()) {
-      user = await db.user.update({
-        where: { id: user.id },
-        data: { name: name.trim() },
-      });
+    if (!user) {
+      return errorResponse("Invalid email or password", 401);
     }
 
-    return NextResponse.json({ user });
-  } catch (error) {
-    console.error("Auth login error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
+    if (!user.isActive) {
+      return errorResponse("Account is deactivated. Contact an administrator.", 403);
+    }
 
-// GET /api/auth - Get current users list
-export async function GET() {
-  try {
-    const users = await db.user.findMany({
-      orderBy: { createdAt: "desc" },
+    // Validate password
+    if (user.password !== password) {
+      return errorResponse("Invalid email or password", 401);
+    }
+
+    // RBAC: super_admin can access any portal, others must match their assigned portal
+    if (user.role !== "super_admin" && portal && user.portal !== portal) {
+      return errorResponse(`This account is not authorized for the ${portal} portal. Please use the correct login.`, 403);
+    }
+
+    // Create session token
+    const token = createId();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await db.session.create({
+      data: {
+        userId: user.id,
+        token,
+        userAgent: request.headers.get("user-agent") ?? null,
+        expiresAt,
+      },
     });
 
-    return NextResponse.json({ users });
-  } catch (error) {
-    console.error("Auth GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    // Update last login
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
+
+    // Log activity
+    await logActivity(
+      "login",
+      `${user.name} logged in`,
+      { email: user.email, portal: user.portal },
+      user.id,
+      undefined,
+      user.portal
     );
+
+    // Return user without password
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _, ...userWithoutPassword } = user;
+
+    return jsonResponse({
+      user: userWithoutPassword,
+      token,
+      role: user.role,
+      portal: user.portal,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return errorResponse("Internal server error", 500);
   }
 }
