@@ -1280,8 +1280,8 @@ function SettingsView({ toast }: { toast:(m:string,t?:string)=>void }) {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">GHL Webhook URL</label>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 truncate">{typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/ghl` : "/api/webhooks/ghl"}</code>
-                <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/ghl`); toast("Webhook URL copied!","info"); }}><Copy className="w-4 h-4"/></Button>
+                <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 truncate">{typeof window !== "undefined" ? `${window.location.origin}/api/webhook` : "/api/webhook"}</code>
+                <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/webhook`); toast("Webhook URL copied!","info"); }}><Copy className="w-4 h-4"/></Button>
               </div>
             </div>
           </div>

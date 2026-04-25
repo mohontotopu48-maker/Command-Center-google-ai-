@@ -1,3 +1,4 @@
+import { db } from "@/lib/db";
 import { extractToken, validateSession, jsonResponse, errorResponse } from "@/lib/auth";
 
 // ═══════════════════════════════════════════════════════

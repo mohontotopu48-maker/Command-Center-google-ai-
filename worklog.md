@@ -106,3 +106,49 @@ Stage Summary:
 - VBOS Admin Panel expanded: portal health overview, automation management, cross-portal activity log
 - 5 new modular components created under src/components/
 - All existing functionality preserved
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Full recheck all components, fix bugs, ensure preview works
+
+Work Log:
+- Deep read of all 242 lines of prisma/schema.prisma (11 models verified)
+- Deep read of all 1333 lines of page.tsx (13 view functions + helpers)
+- Deep read of all 18 API route files
+- Deep read of all 7 component files (3 vbos, theme-toggle, notification-panel, 4 UI)
+- Deep read of store, auth, db, utils, layout, globals.css, package.json
+
+Bugs Found and Fixed:
+1. CRITICAL: Missing `import { db } from "@/lib/db"` in /api/notifications/route.ts — would crash on any notification fetch/create/update
+2. Wrong webhook URL in Settings view — showed `/api/webhooks/ghl` but actual API route is `/api/webhook`
+3. Seed data type mismatch — estimatedValue provided as integers (5000, 7500...) but Prisma schema expects String?. Changed all to strings.
+4. Activities API Prisma error — `groupBy` with `take` required `orderBy` on all non-grouped fields. Removed `take: 20` from groupBy.
+
+Database Operations:
+- Dropped and recreated database (db/custom.db)
+- Ran `prisma db push` to sync schema
+- Re-seeded with complete data: 3 users, 15 leads, 8 tasks, 3 projects (39 steps), 24 activities, 10 notifications, 3 automations, 9 settings
+
+API Testing Results (all 12 endpoints):
+✓ POST /api/auth — Login successful
+✓ GET /api/dashboard — Stats loaded
+✓ GET /api/leads — Loaded
+✓ GET /api/tasks — Loaded
+✓ GET /api/notifications — Loaded
+✓ GET /api/projects — Loaded
+✓ GET /api/activities — Loaded (after fix)
+✓ GET /api/settings — Loaded
+✓ GET /api/automations — Loaded
+✓ GET /api/users — Admin access works
+✓ GET / (page) — Landing renders with "VISUAL BUSINESS OS"
+✓ POST /api/seed — Seeded successfully
+
+Lint: Zero errors in src/ directory (84 warnings in skills/ are unrelated)
+
+Stage Summary:
+- All 4 bugs found and fixed
+- All 12 API routes verified returning 200
+- Database fully seeded with comprehensive demo data
+- Dev server running on port 3000
+- Application ready for preview

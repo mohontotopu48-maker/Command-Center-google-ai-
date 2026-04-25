@@ -43,7 +43,6 @@ export async function GET(request: Request) {
     const typeCounts = await db.activity.groupBy({
       by: ["type"],
       _count: { id: true },
-      take: 20,
     });
 
     const countsByType = Object.fromEntries(

@@ -63,21 +63,21 @@ export async function POST() {
     // 2. LEADS (15 leads across all stages)
     // ═══════════════════════════════════════════════════
     const leadsData = [
-      { name: "Marcus Johnson", businessName: "Urban Style Co.", phone: "+1 (555) 301-0001", email: "marcus@urbanstyle.com", stage: "New Lead", source: "organic", tags: "fashion,branding", portal: "nxl", value: 5000 },
-      { name: "Sarah Mitchell", businessName: "FreshBite Kitchen", phone: "+1 (555) 301-0002", email: "sarah@freshbite.com", stage: "Mockup Needed", source: "referral", tags: "restaurant,logo", portal: "nxl", value: 7500 },
-      { name: "David Chen", businessName: "TechFlow Solutions", phone: "+1 (555) 301-0003", email: "david@techflow.com", stage: "Mockup Sent", source: "manual", tags: "saas,web-app", portal: "visual_os", value: 12000 },
-      { name: "Emma Rodriguez", businessName: "Bloom Wellness Spa", phone: "+1 (555) 301-0004", email: "emma@bloomwellness.com", stage: "Engaged", source: "organic", tags: "spa,wellness,booking", portal: "nxl", value: 4500 },
-      { name: "James Wilson", businessName: "Wilson Legal Group", phone: "+1 (555) 301-0005", email: "james@wilsonlegal.com", stage: "Video Sent", source: "referral", tags: "law firm,professional", portal: "nxl", value: 8000 },
-      { name: "Lisa Park", businessName: "GreenLeaf Landscaping", phone: "+1 (555) 301-0006", email: "lisa@greenleaf.com", stage: "Proof Stage", source: "manual", tags: "landscaping,home-services", portal: "nxl", value: 3500 },
-      { name: "Robert Taylor", businessName: "Apex Fitness", phone: "+1 (555) 301-0007", email: "robert@apexfitness.com", stage: "Hot Lead", source: "organic", tags: "gym,fitness,high-priority", portal: "visual_os", value: 6000, hotScore: 95 },
-      { name: "Amanda Foster", businessName: "Cloud9 Coffee", phone: "+1 (555) 301-0008", email: "amanda@cloud9coffee.com", stage: "Call Scheduled", source: "referral", tags: "coffee shop,cafe", portal: "nxl", value: 4000 },
-      { name: "Chris Thompson", businessName: "Digital Edge Marketing", phone: "+1 (555) 301-0009", email: "chris@digitaledge.com", stage: "Closed Won", source: "organic", tags: "marketing,agency", portal: "visual_os", value: 15000 },
-      { name: "Nicole Brown", businessName: "Bella Rose Boutique", phone: "+1 (555) 301-0010", email: "nicole@bellarose.com", stage: "Closed Won", source: "referral", tags: "boutique,fashion", portal: "nxl", value: 5500 },
-      { name: "Michael Davis", businessName: "Swift Auto Repair", phone: "+1 (555) 301-0011", email: "michael@swiftauto.com", stage: "Closed Lost", source: "manual", tags: "auto,repair", portal: "nxl", value: 3000 },
-      { name: "Jennifer Lee", businessName: "Zen Yoga Studio", phone: "+1 (555) 301-0012", email: "jennifer@zenyoga.com", stage: "Retention", source: "organic", tags: "yoga,wellness,retention", portal: "visual_os", value: 2500 },
-      { name: "Andrew Moore", businessName: "Skyline Roofing", phone: "+1 (555) 301-0013", email: "andrew@skylineroofing.com", stage: "New Lead", source: "ghl_webhook", tags: "roofing,construction", portal: "nxl", value: 6000 },
-      { name: "Rachel Kim", businessName: "Pacific Dental Care", phone: "+1 (555) 301-0014", email: "rachel@pacificdental.com", stage: "Mockup Needed", source: "organic", tags: "dental,medical", portal: "nxl", value: 9000 },
-      { name: "Daniel Garcia", businessName: "El Sabor Restaurant", phone: "+1 (555) 301-0015", email: "daniel@elsabor.com", stage: "Engaged", source: "referral", tags: "restaurant,latino", portal: "nxl", value: 5500 },
+      { name: "Marcus Johnson", businessName: "Urban Style Co.", phone: "+1 (555) 301-0001", email: "marcus@urbanstyle.com", stage: "New Lead", source: "organic", tags: "fashion,branding", portal: "nxl", value: "5000" },
+      { name: "Sarah Mitchell", businessName: "FreshBite Kitchen", phone: "+1 (555) 301-0002", email: "sarah@freshbite.com", stage: "Mockup Needed", source: "referral", tags: "restaurant,logo", portal: "nxl", value: "7500" },
+      { name: "David Chen", businessName: "TechFlow Solutions", phone: "+1 (555) 301-0003", email: "david@techflow.com", stage: "Mockup Sent", source: "manual", tags: "saas,web-app", portal: "visual_os", value: "12000" },
+      { name: "Emma Rodriguez", businessName: "Bloom Wellness Spa", phone: "+1 (555) 301-0004", email: "emma@bloomwellness.com", stage: "Engaged", source: "organic", tags: "spa,wellness,booking", portal: "nxl", value: "4500" },
+      { name: "James Wilson", businessName: "Wilson Legal Group", phone: "+1 (555) 301-0005", email: "james@wilsonlegal.com", stage: "Video Sent", source: "referral", tags: "law firm,professional", portal: "nxl", value: "8000" },
+      { name: "Lisa Park", businessName: "GreenLeaf Landscaping", phone: "+1 (555) 301-0006", email: "lisa@greenleaf.com", stage: "Proof Stage", source: "manual", tags: "landscaping,home-services", portal: "nxl", value: "3500" },
+      { name: "Robert Taylor", businessName: "Apex Fitness", phone: "+1 (555) 301-0007", email: "robert@apexfitness.com", stage: "Hot Lead", source: "organic", tags: "gym,fitness,high-priority", portal: "visual_os", value: "6000", hotScore: 95 },
+      { name: "Amanda Foster", businessName: "Cloud9 Coffee", phone: "+1 (555) 301-0008", email: "amanda@cloud9coffee.com", stage: "Call Scheduled", source: "referral", tags: "coffee shop,cafe", portal: "nxl", value: "4000" },
+      { name: "Chris Thompson", businessName: "Digital Edge Marketing", phone: "+1 (555) 301-0009", email: "chris@digitaledge.com", stage: "Closed Won", source: "organic", tags: "marketing,agency", portal: "visual_os", value: "15000" },
+      { name: "Nicole Brown", businessName: "Bella Rose Boutique", phone: "+1 (555) 301-0010", email: "nicole@bellarose.com", stage: "Closed Won", source: "referral", tags: "boutique,fashion", portal: "nxl", value: "5500" },
+      { name: "Michael Davis", businessName: "Swift Auto Repair", phone: "+1 (555) 301-0011", email: "michael@swiftauto.com", stage: "Closed Lost", source: "manual", tags: "auto,repair", portal: "nxl", value: "3000" },
+      { name: "Jennifer Lee", businessName: "Zen Yoga Studio", phone: "+1 (555) 301-0012", email: "jennifer@zenyoga.com", stage: "Retention", source: "organic", tags: "yoga,wellness,retention", portal: "visual_os", value: "2500" },
+      { name: "Andrew Moore", businessName: "Skyline Roofing", phone: "+1 (555) 301-0013", email: "andrew@skylineroofing.com", stage: "New Lead", source: "ghl_webhook", tags: "roofing,construction", portal: "nxl", value: "6000" },
+      { name: "Rachel Kim", businessName: "Pacific Dental Care", phone: "+1 (555) 301-0014", email: "rachel@pacificdental.com", stage: "Mockup Needed", source: "organic", tags: "dental,medical", portal: "nxl", value: "9000" },
+      { name: "Daniel Garcia", businessName: "El Sabor Restaurant", phone: "+1 (555) 301-0015", email: "daniel@elsabor.com", stage: "Engaged", source: "referral", tags: "restaurant,latino", portal: "nxl", value: "5500" },
     ];
 
     const leads = await Promise.all(

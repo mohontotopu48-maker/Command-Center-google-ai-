@@ -1,11 +1,9 @@
-$ next dev
 ▲ Next.js 16.2.4 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://21.0.10.241:3000
 - Environments: .env
-✓ Ready in 376ms
-⚠ Turbopack's filesystem cache has been deleted because we previously detected an internal error in Turbopack. Builds or page loads may be slower as a result.
+✓ Ready in 378ms
 
-○ Compiling / ...
- GET / 200 in 3.4s (next.js: 3.2s, application-code: 186ms)
- GET / 200 in 62ms (next.js: 3ms, application-code: 59ms)
+ GET / 200 in 777ms (next.js: 599ms, application-code: 178ms)
+ POST /api/auth 200 in 407ms (next.js: 340ms, application-code: 67ms)
+ GET /api/activities?limit=3 200 in 89ms (next.js: 75ms, application-code: 13ms)
