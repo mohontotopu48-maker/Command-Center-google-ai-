@@ -16,12 +16,23 @@ async function warmup() {
     await wait(1000);
   }
 
-  // Seed database
+  // Seed database (login as admin first)
   try {
-    const seedRes = await fetch(`${BASE}/api/seed`, { method: 'POST' });
+    const adminLogin = await fetch(`${BASE}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'info.vsualdm@gmail.com', password: 'VSUAL@NX$260&', portal: 'vbos' }),
+    });
+    const adminData = await adminLogin.json();
+    const adminToken = adminData.token;
+    
+    const seedRes = await fetch(`${BASE}/api/seed`, { 
+      method: 'POST',
+      headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
+    });
     const seedData = await seedRes.json();
     console.log('Seed:', seedData.message || seedData.error);
-  } catch (e) { console.log('Seed failed:', e.message); }
+  } catch (e) { console.log('Seed skipped:', e.message); }
 
   // Login to get token
   let token = '';

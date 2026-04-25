@@ -173,7 +173,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedPortal: (portal) => set({ selectedPortal: portal }),
 
   sidebarOpen: true,
-  setSidebarOpen: (open) => set({ sidebarOpen: typeof open === "function" ? open(true) : open }),
+  setSidebarOpen: (open) => set((state) => ({ sidebarOpen: typeof open === "function" ? open(state.sidebarOpen) : open })),
 
   leads: [],
   setLeads: (leads) => set({ leads }),

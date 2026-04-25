@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Command Center - Google AI",
-  description: "AI-Powered Command Center Dashboard",
+  title: "VBOS - Visual Business OS",
+  description: "Unified Command Center for Modern Business - Pipeline, Projects, and Automation",
 };
 
 export default function RootLayout({

@@ -1,11 +1,16 @@
 import { db } from "@/lib/db";
-import { MASTER_PASSWORD, PROJECT_STEPS, jsonResponse, errorResponse } from "@/lib/auth";
+import { MASTER_PASSWORD, PROJECT_STEPS, getPhaseForStep, requireSuperAdmin, jsonResponse, errorResponse } from "@/lib/auth";
 
 // ═══════════════════════════════════════════════════════
-// POST /api/seed — Seed comprehensive demo data
+// POST /api/seed — Seed comprehensive demo data (admin only)
 // ═══════════════════════════════════════════════════════
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    // Auth guard — only super admin can seed
+    const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
+    const admin = await requireSuperAdmin(token);
+    if (!admin) return errorResponse("Unauthorized. Super admin access required.", 403);
+
     // Idempotency check: skip if users already exist
     const existingUsers = await db.user.count();
     if (existingUsers > 0) {
@@ -344,12 +349,4 @@ export async function POST() {
     console.error("Seed error:", error);
     return errorResponse("Internal server error during seeding", 500);
   }
-}
-
-// Helper to determine phase from step number
-function getPhaseForStep(stepNumber: number): string {
-  if (stepNumber <= 3) return "handover";
-  if (stepNumber <= 6) return "game_plan";
-  if (stepNumber <= 10) return "foundation";
-  return "live";
 }
