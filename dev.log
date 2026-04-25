@@ -1,9 +1,0 @@
-▲ Next.js 16.2.4 (Turbopack)
-- Local:         http://localhost:3000
-- Network:       http://21.0.10.241:3000
-- Environments: .env
-✓ Ready in 378ms
-
- GET / 200 in 777ms (next.js: 599ms, application-code: 178ms)
- POST /api/auth 200 in 407ms (next.js: 340ms, application-code: 67ms)
- GET /api/activities?limit=3 200 in 89ms (next.js: 75ms, application-code: 13ms)
