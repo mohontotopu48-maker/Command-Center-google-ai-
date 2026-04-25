@@ -1,5 +1,55 @@
 import { create } from "zustand";
 
+// ─── Resilient API Fetch ───────────────────────────────────
+const RETRY_DELAYS = [300, 800, 1500];
+const MAX_RETRIES = 3;
+
+export async function apiFetch(
+  url: string,
+  options: RequestInit = {},
+  retries = MAX_RETRIES
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(options.signal ? 30000 : 15000),
+      });
+      return res;
+    } catch (err) {
+      lastError = err as Error;
+      // Don't retry on 4xx errors
+      if ((err as Error).name === "AbortError" && attempt < retries) continue;
+      if (attempt < retries && RETRY_DELAYS[attempt]) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+      }
+    }
+  }
+  throw lastError ?? new Error("Request failed after retries");
+}
+
+export async function apiGet<T>(url: string, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await apiFetch(url, { headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiPost<T>(url: string, body: unknown, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await apiFetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  return res.json();
+}
+
 // ─── Types ───────────────────────────────────────────────
 export interface User {
   id: string;

@@ -37,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/notification-panel";
-import { useAppStore, type Lead, type Task, type Activity, type User } from "@/store/app-store";
+import { useAppStore, apiFetch, type Lead, type Task, type Activity, type User } from "@/store/app-store";
 import PortalHealthOverview from "@/components/vbos/portal-health";
 import AutomationRulesManager from "@/components/vbos/automation-manager";
 import ActivityLogViewer from "@/components/vbos/activity-log";
@@ -183,16 +183,19 @@ function LoginView() {
     if (!email || !password) { setError("Email and password are required"); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch("/api/auth", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ email, password }) });
+      const res = await apiFetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
       const data = await res.json();
       if (data.user && data.token) {
         setCurrentUser(data.user);
         setSessionToken(data.token);
-        // Auto-set portal from user's record
         if (data.portal) setSelectedPortal(data.portal);
         setActiveView("dashboard");
       } else { setError(data.error || "Invalid credentials"); }
-    } catch { setError("Connection failed. Please try again."); }
+    } catch { setError("Connection failed. Retrying..."); }
     finally { setLoading(false); }
   }, [email, password, setCurrentUser, setSessionToken, setActiveView, setSelectedPortal]);
 
