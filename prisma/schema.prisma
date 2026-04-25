@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("client") // admin | client
+  phone     String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities Activity[]
+
+  @@map("users")
+}
+
+model Lead {
+  id            String   @id @default(cuid())
+  name          String
+  businessName  String?
+  phone         String
+  email         String
+  serviceType   String?
+  pipelineStage String   @default("New Lead")
+  tags          String   @default("")
+  assignedTo    String?
+  notes         String?
+  source        String   @default("manual") // manual | ghl_webhook | referral
+  status        String   @default("active") // active | archived | lost
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastActivityAt DateTime @default(now())
+
+  tasks      Task[]
+  activities Activity[]
+
+  @@map("leads")
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String   @default("general") // mockup | follow_up | call | review | general
+  priority    String   @default("medium")  // low | medium | high | urgent
+  status      String   @default("pending") // pending | in_progress | completed | overdue
+  assignedTo  String?
+  leadId      String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lead       Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  activities Activity[]
+
+  @@map("tasks")
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  type      String   // lead_created | stage_changed | task_created | task_completed | note_added | mockup_sent | hot_lead | call_scheduled
+  message   String
+  metadata  String?  // JSON string for extra data
+  userId    String?
+  leadId    String?
+  taskId    String?
+  createdAt DateTime @default(now())
+
+  user User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lead Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  task Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@map("activities")
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  leadId         String?
+  clientName     String
+  businessName   String?
+  currentPhase   String   @default("handover") // handover | game_plan | foundation | live
+  currentStep    Int      @default(1)          // 1-13
+  actionRequired Boolean  @default(false)
+  actionMessage  String   @default("")
+  status         String   @default("active")   // active | paused | completed
+  startedAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string") // string | number | boolean | json
+
+  @@map("settings")
+}
+
+model AutomationLog {
+  id        String   @id @default(cuid())
+  trigger   String   // lead_created | stage_changed | task_overdue | stuck_lead
+  action    String   // what was executed
+  leadId    String?
+  status    String   @default("success") // success | failed
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@map("automation_logs")
+}
