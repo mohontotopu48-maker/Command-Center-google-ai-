@@ -293,3 +293,25 @@ Stage Summary:
 - Lint: 0 errors
 - Database: healthy, seeded
 - All authentication, RBAC, CRUD operations working correctly
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: Fix login issue - portal RBAC blocking users, simplify landing page
+
+Work Log:
+- Diagnosed login failure: the portal RBAC check at /api/auth was rejecting users who clicked the wrong portal button on the landing page (e.g., test@customer.com has portal="nxl" but if user clicked "Visual OS Portal" they got 403)
+- Fixed /api/auth/route.ts: Removed the portal mismatch rejection (all portals share the same SPA at /, multi-portal routing not yet implemented)
+- Simplified landing page: Removed 3 separate portal login buttons (Visual OS, NXL, VBOS), replaced with single "Sign In" button
+- Updated LoginView: Removed portal selection, auto-sets portal from user record after login (data.portal → setSelectedPortal)
+- Updated login form: Shows both demo accounts (client + admin) as hints
+- Removed unused imports: Globe, Rocket (no longer needed)
+- Cleaned up unused `portal` variable in auth destructuring
+- Rebuilt production bundle, verified 0 errors, 0 lint warnings
+
+Stage Summary:
+- Login now works from a single Sign In button — no portal confusion
+- Portal is auto-detected from user's database record after login
+- Demo credentials shown: test@customer.com/test123 (client) and info.vsualdm@gmail.com/VSUAL@NX$260& (admin)
+- ESLint: 0 errors, 0 warnings
+- Build: 0 errors

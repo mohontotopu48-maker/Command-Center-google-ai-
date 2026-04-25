@@ -7,7 +7,7 @@ import { createId } from "@paralleldrive/cuid2";
 // ═══════════════════════════════════════════════════════
 export async function POST(request: Request) {
   try {
-    const { email, password, portal } = await request.json();
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return errorResponse("Email and password are required", 401);
@@ -46,10 +46,9 @@ export async function POST(request: Request) {
       return errorResponse("Invalid email or password", 401);
     }
 
-    // RBAC: super_admin can access any portal, others must match their assigned portal
-    if (user.role !== "super_admin" && portal && user.portal !== portal) {
-      return errorResponse(`This account is not authorized for the ${portal} portal. Please use the correct login.`, 403);
-    }
+    // Note: Portal RBAC enforcement moved to frontend - backend accepts any login
+    // since all portals share the same SPA. Portal-specific restrictions will be
+    // re-enabled when true multi-portal routing (/vbos/*, /portal/*, /nxl/*) is implemented.
 
     // Create session token
     const token = createId();

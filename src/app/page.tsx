@@ -24,14 +24,12 @@ import {
   Circle,
   Star,
   FileText,
-  Rocket,
   Loader2,
   Info,
   HelpCircle,
   UserPlus,
   Calendar,
   Shield,
-  Globe,
   Copy,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -136,7 +134,7 @@ function Spinner() {
    1. LANDING PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 function LandingPage() {
-  const { setSelectedPortal, setActiveView } = useAppStore();
+  const setActiveView = useAppStore(s => s.setActiveView);
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-slate-800 to-emerald-950 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -157,18 +155,11 @@ function LandingPage() {
             <span key={f} className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 backdrop-blur-sm">{f}</span>
           ))}
         </div>
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <button onClick={() => { setSelectedPortal("visual_os"); setActiveView("login"); }}
-            className="px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-semibold text-base shadow-lg shadow-emerald-500/30 transition-all duration-200 hover:scale-105 flex items-center gap-3">
-            <Globe className="w-5 h-5"/>Login to Visual OS Portal
-          </button>
-          <button onClick={() => { setSelectedPortal("nxl"); setActiveView("login"); }}
-            className="px-8 py-4 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white font-semibold text-base shadow-lg shadow-teal-500/30 transition-all duration-200 hover:scale-105 flex items-center gap-3">
-            <Rocket className="w-5 h-5"/>Login to NXL Builder
-          </button>
-        </div>
-        <button onClick={() => { setSelectedPortal("vbos"); setActiveView("login"); }}
-          className="text-sm text-gray-500 hover:text-gray-300 underline underline-offset-4 transition-colors">VBOS Super Admin Login</button>
+        <button onClick={() => setActiveView("login")}
+          className="px-10 py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-semibold text-lg shadow-lg shadow-emerald-500/30 transition-all duration-200 hover:scale-105 flex items-center gap-3">
+          <Cpu className="w-5 h-5"/>Sign In
+        </button>
+        <p className="text-sm text-gray-500 mt-4">Admin &bull; Client &bull; Portal access</p>
       </main>
       <footer className="relative z-10 py-6 text-center">
         <p className="text-sm text-gray-600">&copy; 2026 VSUAL Digital Media. All rights reserved.</p>
@@ -181,26 +172,29 @@ function LandingPage() {
    2. LOGIN VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 function LoginView() {
-  const { selectedPortal, setCurrentUser, setSessionToken, setActiveView } = useAppStore();
+  const { setCurrentUser, setSessionToken, setActiveView, setSelectedPortal } = useAppStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const portalLabel = selectedPortal === "vbos" ? "VBOS Admin" : selectedPortal === "visual_os" ? "Visual OS Portal" : "NXL Builder Command Center";
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { setError("Email and password are required"); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch("/api/auth", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ email, password, portal:selectedPortal }) });
+      const res = await fetch("/api/auth", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ email, password }) });
       const data = await res.json();
-      if (data.user && data.token) { setCurrentUser(data.user); setSessionToken(data.token); setActiveView("dashboard"); }
-      else { setError(data.error || "Invalid credentials"); }
+      if (data.user && data.token) {
+        setCurrentUser(data.user);
+        setSessionToken(data.token);
+        // Auto-set portal from user's record
+        if (data.portal) setSelectedPortal(data.portal);
+        setActiveView("dashboard");
+      } else { setError(data.error || "Invalid credentials"); }
     } catch { setError("Connection failed. Please try again."); }
     finally { setLoading(false); }
-  }, [email, password, selectedPortal, setCurrentUser, setSessionToken, setActiveView]);
+  }, [email, password, setCurrentUser, setSessionToken, setActiveView, setSelectedPortal]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-emerald-950 p-4 relative overflow-hidden">
@@ -215,8 +209,8 @@ function LoginView() {
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
               <Cpu className="w-8 h-8 text-white"/>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">{portalLabel}</h1>
-            <p className="text-gray-400 text-sm">Sign in to continue</p>
+            <h1 className="text-2xl font-bold text-white mb-1">Sign In</h1>
+            <p className="text-gray-400 text-sm">VBOS - Visual Business OS</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -234,7 +228,11 @@ function LoginView() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Cpu className="w-4 h-4 mr-2"/>}Sign In
             </Button>
           </form>
-          <p className="text-center text-xs text-gray-500 mt-6">Demo: test@customer.com / test123</p>
+          <div className="text-center space-y-1 mt-6">
+            <p className="text-xs text-gray-500">Demo accounts:</p>
+            <p className="text-xs text-gray-600">Client: test@customer.com / test123</p>
+            <p className="text-xs text-gray-600">Admin: info.vsualdm@gmail.com / VSUAL@NX$260&</p>
+          </div>
         </CardContent>
       </Card>
     </div>
