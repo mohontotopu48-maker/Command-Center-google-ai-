@@ -78,3 +78,31 @@ Stage Summary:
 - System fully functional: login, APIs, database, seeding all operational
 - 3 users, 15 leads, 8 tasks, 3 projects seeded
 - Ready for next development phase
+
+---
+Task ID: 4
+Agent: Main Agent + Sub-agents
+Task: Expand multi-portal features and add new UI features
+
+Work Log:
+- Installed next-themes@0.4.6 for dark mode support
+- Created ThemeToggle component (src/components/theme-toggle.tsx) — Sun/Moon icon with smooth animation, persists to localStorage
+- Created NotificationPanel component (src/components/notification-panel.tsx) — Bell dropdown with fetch, mark-read, mark-all-read, click-outside close, Escape key close
+- Updated layout.tsx with ThemeProvider (class-based dark mode, defaultTheme="dark")
+- Added suppressHydrationWarning to html tag for next-themes SSR compatibility
+- Created PortalHealthOverview component (src/components/vbos/portal-health.tsx) — 3 portal cards (VBOS, Visual OS, NXL) with status indicators and metrics
+- Created AutomationRulesManager component (src/components/vbos/automation-manager.tsx) — rule list with toggle switches, run counts, refresh button
+- Created ActivityLogViewer component (src/components/vbos/activity-log.tsx) — filtered activity feed with portal tabs and type dropdown
+- Updated page.tsx: integrated all 5 new components via surgical edits
+- Updated Header function to use NotificationPanel + ThemeToggle instead of static Bell
+- Updated AdminView to include Portal Health, Automation Manager, and Activity Log
+- Added dark: variants to Header and Sidebar for dark mode support
+- Fixed lint issues: removed unused Bell import from page.tsx, unused Circle import from notification-panel.tsx
+- Zero lint errors in src/ directory confirmed
+
+Stage Summary:
+- Dark mode fully working with toggle in header, persists across sessions
+- Notifications panel: real-time badge count, mark-read, mark-all-read
+- VBOS Admin Panel expanded: portal health overview, automation management, cross-portal activity log
+- 5 new modular components created under src/components/
+- All existing functionality preserved

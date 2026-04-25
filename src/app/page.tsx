@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   Plus,
-  Bell,
   Search,
   ArrowRight,
   ArrowLeft,
@@ -38,7 +37,12 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationPanel } from "@/components/notification-panel";
 import { useAppStore, type Lead, type Task, type Activity, type User } from "@/store/app-store";
+import PortalHealthOverview from "@/components/vbos/portal-health";
+import AutomationRulesManager from "@/components/vbos/automation-manager";
+import ActivityLogViewer from "@/components/vbos/activity-log";
 import { formatDistanceToNow, format, parseISO, isPast } from "date-fns";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -263,11 +267,11 @@ function Sidebar({ onToggle }: { onToggle: () => void }) {
   return (
     <>
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onToggle}/>}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white border-r border-gray-200 flex flex-col transition-all duration-300 w-[260px] ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        <div className="h-16 flex items-center px-4 border-b border-gray-100 shrink-0">
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-all duration-300 w-[260px] ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+        <div className="h-16 flex items-center px-4 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0"><Cpu className="w-5 h-5 text-white"/></div>
-            <span className="font-bold text-lg tracking-tight">{logoText}</span>
+            <span className="font-bold text-lg tracking-tight dark:text-gray-100">{logoText}</span>
           </div>
         </div>
         <nav className="flex-1 py-4 px-2 overflow-y-auto">
@@ -276,8 +280,8 @@ function Sidebar({ onToggle }: { onToggle: () => void }) {
               const isActive = activeView === item.view;
               return (
                 <button key={item.view} onClick={() => { setActiveView(item.view); if (window.innerWidth < 1024) onToggle(); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "bg-emerald-50 text-emerald-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}>
-                  <item.icon className={`w-5 h-5 shrink-0 ${isActive ? "text-emerald-600" : ""}`}/>
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"}`}>
+                  <item.icon className={`w-5 h-5 shrink-0 ${isActive ? "text-emerald-600 dark:text-emerald-400" : ""}`}/>
                   <span>{item.label}</span>
                 </button>
               );
@@ -285,15 +289,15 @@ function Sidebar({ onToggle }: { onToggle: () => void }) {
           </div>
         </nav>
         {currentUser && (
-          <div className="border-t border-gray-100 p-3 shrink-0">
+          <div className="border-t border-gray-100 dark:border-gray-800 p-3 shrink-0">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shrink-0">{currentUser.name.charAt(0).toUpperCase()}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{currentUser.name}</p>
+                <p className="text-sm font-medium truncate dark:text-gray-100">{currentUser.name}</p>
                 <Badge className={`text-[10px] ${ROLE_COLORS[currentUser.role] || ""}`}>{currentUser.role}</Badge>
               </div>
             </div>
-            <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all">
+            <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 transition-all">
               <LogOut className="w-4 h-4"/><span>Logout</span>
             </button>
           </div>
@@ -307,28 +311,26 @@ function Sidebar({ onToggle }: { onToggle: () => void }) {
    3. HEADER
    ═══════════════════════════════════════════════════════════════════════════ */
 function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const { activeView, setIntakeModalOpen, unreadCount } = useAppStore();
+  const { activeView, setIntakeModalOpen, sessionToken } = useAppStore();
   const titles: Record<string,string> = {
     dashboard:"Dashboard", pipeline:"Pipeline", leads:"Leads",
     tasks:"Tasks", portal:"Command Center", admin:"Admin Panel", settings:"Settings",
   };
   const showNewLead = ["dashboard","pipeline","leads"].includes(activeView);
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shrink-0">
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shrink-0">
       <div className="flex items-center gap-3">
-        <button onClick={onMenuToggle} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"><Menu className="w-5 h-5"/></button>
-        <h1 className="text-lg font-semibold text-gray-900">{titles[activeView] || "Dashboard"}</h1>
+        <button onClick={onMenuToggle} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Menu className="w-5 h-5"/></button>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{titles[activeView] || "Dashboard"}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {showNewLead && (
           <Button onClick={() => setIntakeModalOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
             <Plus className="w-4 h-4"/><span className="hidden sm:inline ml-1">New Lead</span>
           </Button>
         )}
-        <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <Bell className="w-5 h-5 text-gray-500"/>
-          {unreadCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-pink-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-        </button>
+        {sessionToken && <NotificationPanel token={sessionToken} />}
+        <ThemeToggle />
       </div>
     </header>
   );
@@ -1153,11 +1155,17 @@ function AdminView({ toast }: { toast:(m:string,t?:string)=>void }) {
 
   return (
     <div className="space-y-6">
+      {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-4">
         <Card><CardContent className="p-4"><p className="text-sm text-gray-500">Total Users</p><p className="text-2xl font-bold">{users.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-500">Admins</p><p className="text-2xl font-bold">{(byRole.admin||0)+(byRole.super_admin||0)}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-500">Clients</p><p className="text-2xl font-bold">{byRole.client||0}</p></CardContent></Card>
       </div>
+
+      {/* Portal Health Overview */}
+      {sessionToken && <PortalHealthOverview token={sessionToken} />}
+
+      {/* User Management */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1203,6 +1211,12 @@ function AdminView({ toast }: { toast:(m:string,t?:string)=>void }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Automation Rules Manager */}
+      {sessionToken && <AutomationRulesManager token={sessionToken} toast={toast} />}
+
+      {/* Activity Log Viewer */}
+      {sessionToken && <ActivityLogViewer token={sessionToken} />}
     </div>
   );
 }
@@ -1305,7 +1319,7 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
       <Sidebar onToggle={() => setSidebarOpen(prev => !prev)}/>
       <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuToggle={() => setSidebarOpen(prev => !prev)}/>
