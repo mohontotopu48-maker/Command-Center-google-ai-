@@ -1424,3 +1424,10 @@ Import traces:
  GET / 200 in 211ms (next.js: 71ms, application-code: 140ms)
 ✓ Compiled in 49ms
  GET / 200 in 43ms (next.js: 5ms, application-code: 39ms)
+ GET / 200 in 32ms (next.js: 1986µs, application-code: 30ms)
+ POST /api/auth 200 in 76ms (next.js: 36ms, application-code: 40ms)
+ POST /api/auth 200 in 12ms (next.js: 1374µs, application-code: 11ms)
+ POST /api/auth 200 in 11ms (next.js: 1383µs, application-code: 9ms)
+ GET /api/dashboard 200 in 37ms (next.js: 19ms, application-code: 17ms)
+ GET / 200 in 32ms (next.js: 2ms, application-code: 29ms)
+ GET / 200 in 28ms (next.js: 5ms, application-code: 22ms)
