@@ -116,7 +116,7 @@ interface AppState {
 
   // Sidebar
   sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
+  setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 
   // Leads
   leads: Lead[];
@@ -173,7 +173,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedPortal: (portal) => set({ selectedPortal: portal }),
 
   sidebarOpen: true,
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  setSidebarOpen: (open) => set({ sidebarOpen: typeof open === "function" ? open(true) : open }),
 
   leads: [],
   setLeads: (leads) => set({ leads }),

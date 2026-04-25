@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     // Check if lead already exists by email
-    const existingLead = await db.lead.findUnique({
+    const existingLead = await db.lead.findFirst({
       where: { email: email.toLowerCase().trim() },
     });
 

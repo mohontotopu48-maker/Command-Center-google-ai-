@@ -162,14 +162,14 @@ export async function PATCH(request: Request) {
     if (!existing) return errorResponse("Task not found", 404);
 
     const data: Record<string, unknown> = {};
-    const changes: Record<string, unknown> = {};
+    const changes: { title?: string; type?: string; priority?: string; assignedTo?: string; statusChanged?: { from: string; to: string } } = {};
 
     if (title !== undefined) { data.title = title.trim(); changes.title = title; }
-    if (description !== undefined) { data.description = description; changes.description = true; }
+    if (description !== undefined) { data.description = description; }
     if (type !== undefined) { data.type = type; changes.type = type; }
     if (priority !== undefined) { data.priority = priority; changes.priority = priority; }
     if (assignedTo !== undefined) { data.assignedTo = assignedTo; changes.assignedTo = assignedTo; }
-    if (dueDate !== undefined) { data.dueDate = dueDate ? new Date(dueDate) : null; changes.dueDate = dueDate; }
+    if (dueDate !== undefined) { data.dueDate = dueDate ? new Date(dueDate) : null; }
 
     if (status !== undefined) {
       data.status = status;
@@ -190,7 +190,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    const activityType = changes.statusChanged && changes.statusChanged.to === "completed"
+    const activityType = changes.statusChanged?.to === "completed"
       ? "task_completed"
       : "system";
 

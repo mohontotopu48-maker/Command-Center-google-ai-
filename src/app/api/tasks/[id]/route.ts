@@ -20,7 +20,7 @@ export async function PATCH(
     if (!existing) return errorResponse("Task not found", 404);
 
     const data: Record<string, unknown> = {};
-    const changes: Record<string, unknown> = {};
+    const changes: { title?: string; type?: string; priority?: string; assignedTo?: string; statusChanged?: { from: string; to: string } } = {};
 
     if (body.title !== undefined) { data.title = body.title.trim(); changes.title = body.title; }
     if (body.description !== undefined) { data.description = body.description; }
@@ -48,7 +48,7 @@ export async function PATCH(
       },
     });
 
-    const activityType = changes.statusChanged && changes.statusChanged.to === "completed"
+    const activityType = changes.statusChanged?.to === "completed"
       ? "task_completed"
       : "system";
 

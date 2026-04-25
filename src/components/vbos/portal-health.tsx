@@ -37,10 +37,11 @@ export default function PortalHealthOverview({ token }: { token: string }) {
       const vosUsers = users.filter((u: { portal: string }) => u.portal === "visual_os").length;
       const nxlUsers = users.filter((u: { portal: string }) => u.portal === "nxl").length;
 
-      const totalLeads = Object.values(dashData.leads?.byStage || {}).reduce(
+      const byStage = (dashData.leads?.byStage || {}) as Record<string, number>;
+      const totalLeads = Object.values(byStage).reduce(
         (a: number, b: number) => a + b,
         0
-      ) as number;
+      );
 
       const projectCount = dashData.projects?.summary?.length || 0;
 

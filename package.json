@@ -4,15 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/vercel-build.cjs && prisma generate && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/vercel-build.cjs && prisma generate",
+    "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "curl -X POST http://localhost:3000/api/seed"
   },
   "dependencies": {
-    "@base-ui/react": "^1.4.1",
+
     "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/client": "6.19.3",
     "class-variance-authority": "^0.7.1",

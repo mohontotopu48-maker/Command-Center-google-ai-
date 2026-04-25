@@ -349,7 +349,9 @@ interface DashboardData {
   stuckOpportunities: Lead[];
 }
 
-function DashboardView({ toast }: { toast:(m:string,t?:string)=>void }) {
+type ToastFn = (m: string, t?: "success" | "error" | "info") => void;
+
+function DashboardView({ toast }: { toast: ToastFn }) {
   const { sessionToken, setActiveView, setIntakeModalOpen, setPipelineCounts } = useAppStore();
   const [stats, setStats] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -486,7 +488,7 @@ function DashboardView({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    5. PIPELINE VIEW (Kanban)
    ═══════════════════════════════════════════════════════════════════════════ */
-function PipelineView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function PipelineView({ toast }: { toast: ToastFn }) {
   const { sessionToken, leads, setLeads, selectedLead, setSelectedLead } = useAppStore();
   const [loading, setLoading] = useState(true);
 
@@ -587,7 +589,7 @@ function PipelineView({ toast }: { toast:(m:string,t?:string)=>void }) {
 }
 
 /* ─── Lead Detail Panel ───────────────────────────────────────────────────── */
-function LeadDetailPanel({ lead, onClose }: { lead:Lead; onClose:()=>void; toast:(m:string,t?:string)=>void }) {
+function LeadDetailPanel({ lead, onClose }: { lead:Lead; onClose:()=>void; toast: ToastFn }) {
   const { sessionToken } = useAppStore();
   const [detail, setDetail] = useState<Lead|null>(null);
   const [loading, setLoading] = useState(true);
@@ -646,7 +648,7 @@ function LeadDetailPanel({ lead, onClose }: { lead:Lead; onClose:()=>void; toast
 /* ═══════════════════════════════════════════════════════════════════════════
    6. LEADS VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
-function LeadsView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function LeadsView({ toast }: { toast: ToastFn }) {
   const { sessionToken, leads, setLeads, setSelectedLead } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -767,7 +769,7 @@ function LeadsView({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    7. LEAD INTAKE MODAL
    ═══════════════════════════════════════════════════════════════════════════ */
-function LeadIntakeModal({ toast }: { toast:(m:string,t?:string)=>void }) {
+function LeadIntakeModal({ toast }: { toast: ToastFn }) {
   const { sessionToken, intakeModalOpen, setIntakeModalOpen, setLeads } = useAppStore();
   const [form, setForm] = useState({ name:"", businessName:"", phone:"", email:"", serviceType:"", assignedTo:"" });
   const [loading, setLoading] = useState(false);
@@ -851,7 +853,7 @@ function LeadIntakeModal({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    8. TASKS VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
-function TasksView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function TasksView({ toast }: { toast: ToastFn }) {
   const { sessionToken, tasks, setTasks } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -980,7 +982,7 @@ function TasksView({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    9. COMMAND CENTER (NXL only)
    ═══════════════════════════════════════════════════════════════════════════ */
-function PortalView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function PortalView({ toast }: { toast: ToastFn }) {
   const { sessionToken, projects, setProjects, selectedProject, setSelectedProject, instructionsOpen, setInstructionsOpen } = useAppStore();
   const [loading, setLoading] = useState(true);
 
@@ -1099,7 +1101,7 @@ function PortalView({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    10. ADMIN PANEL (super_admin only)
    ═══════════════════════════════════════════════════════════════════════════ */
-function AdminView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function AdminView({ toast }: { toast: ToastFn }) {
   const { sessionToken, users, setUsers } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -1224,7 +1226,7 @@ function AdminView({ toast }: { toast:(m:string,t?:string)=>void }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    11. SETTINGS (super_admin only)
    ═══════════════════════════════════════════════════════════════════════════ */
-function SettingsView({ toast }: { toast:(m:string,t?:string)=>void }) {
+function SettingsView({ toast }: { toast: ToastFn }) {
   const { sessionToken } = useAppStore();
   const [settings, setSettings] = useState<Array<{id:string;key:string;value:string;type:string;group:string}>|null>(null);
   const [loading, setLoading] = useState(true);
@@ -1320,9 +1322,9 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
-      <Sidebar onToggle={() => setSidebarOpen(prev => !prev)}/>
+      <Sidebar onToggle={() => setSidebarOpen((prev: boolean) => !prev)}/>
       <div className="flex-1 flex flex-col min-w-0">
-        <Header onMenuToggle={() => setSidebarOpen(prev => !prev)}/>
+        <Header onMenuToggle={() => setSidebarOpen((prev: boolean) => !prev)}/>
         <main className="flex-1 p-4 lg:p-6">{renderView()}</main>
       </div>
       {toastState && <Toast message={toastState.message} type={toastState.type} onClose={() => setToastState(null)}/>}

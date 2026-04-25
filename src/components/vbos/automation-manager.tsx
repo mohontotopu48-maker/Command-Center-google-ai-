@@ -44,7 +44,7 @@ export default function AutomationRulesManager({
   toast,
 }: {
   token: string;
-  toast: (msg: string, type?: string) => void;
+  toast: (msg: string, type?: "success" | "error" | "info") => void;
 }) {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [loading, setLoading] = useState(true);
