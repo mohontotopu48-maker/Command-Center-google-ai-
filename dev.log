@@ -1431,3 +1431,8 @@ Import traces:
  GET /api/dashboard 200 in 37ms (next.js: 19ms, application-code: 17ms)
  GET / 200 in 32ms (next.js: 2ms, application-code: 29ms)
  GET / 200 in 28ms (next.js: 5ms, application-code: 22ms)
+ GET / 200 in 28ms (next.js: 1675µs, application-code: 26ms)
+ POST /api/seed 200 in 25ms (next.js: 19ms, application-code: 6ms)
+ GET / 200 in 44ms (next.js: 1933µs, application-code: 42ms)
+ POST /api/auth 200 in 15ms (next.js: 1552µs, application-code: 14ms)
+ GET / 200 in 31ms (next.js: 1822µs, application-code: 30ms)
