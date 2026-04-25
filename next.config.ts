@@ -1,14 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: [
-    "preview-chat-ac7b0dbc-cd1b-4268-b343-e5bc8b30b5d6.space.z.ai",
-  ],
+  // Allow all Z-space preview origins
+  allowedDevOrigins: [".*"],
   async headers() {
     return [
       {
         source: "/(.*)",
         headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,POST,PUT,DELETE,PATCH,OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type,Authorization" },
           { key: "X-Frame-Options", value: "ALLOWALL" },
           { key: "Content-Security-Policy", value: "frame-ancestors * *" },
         ],
